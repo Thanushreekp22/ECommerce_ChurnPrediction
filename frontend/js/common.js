@@ -1,4 +1,4 @@
-function escapeHtml(value) {
+﻿function escapeHtml(value) {
   return String(value ?? '—').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
 }
 function toast(message, tone='success') {
@@ -67,3 +67,16 @@ function basePage(active,content){
   document.body.innerHTML='<div class="app"><header class="topbar"><a class="logo" href="index.html">Churn<span>IQ</span></a><div class="topbar-right"><div class="source-badge"><i></i><span>Analysis ready</span></div><div class="model-badge"><span id="model-name-badge">Loading model</span><span id="auc-badge">—</span></div><button class="btn btn-primary" onclick="go(\'upload.html\')">Upload dataset</button></div></header><div class="shell"><aside class="sidebar" id="sidebar"></aside><main class="main">'+content+'</main></div></div>';
   buildNav(active);setupHeader();
 }
+
+
+/* Inline SVG favicon (keeps console clean, no extra file needed) */
+(function(){
+  const l=document.createElement('link');
+  l.rel='icon';
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    +'<rect width="100" height="100" rx="24" fill="#0a8f78"/>'
+    +'<text x="50" y="70" font-size="54" text-anchor="middle" fill="white" '
+    +'font-family="Arial,sans-serif" font-weight="bold">C</text></svg>';
+  l.href='data:image/svg+xml,'+encodeURIComponent(svg);
+  document.head.appendChild(l);
+})();
