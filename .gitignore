@@ -1,0 +1,34 @@
+﻿# ============================================================
+# ChurnIQ - .gitignore
+# ============================================================
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Secrets & runtime state (NEVER commit)
+.env
+artifacts/integration.sqlite3
+artifacts/notifications_outbox.json
+
+# Model store: ignore everything under artifacts EXCEPT the two
+# bundled production models + active-model pointer, so a fresh
+# clone runs immediately without retraining.
+#   b139e4227328             -> default E-Commerce customer model
+#   canonical_97355064debd   -> transaction (RFM) model used by
+#                               the Shopify/WooCommerce flow
+artifacts/*
+!artifacts/active_model.txt
+!artifacts/b139e4227328/
+!artifacts/b139e4227328/**
+!artifacts/canonical_97355064debd/
+!artifacts/canonical_97355064debd/**
+
+# Local scratch / smoke-test debris
+batch_result*.json
+telecom_result*.json
+test_customer.json
+*.log

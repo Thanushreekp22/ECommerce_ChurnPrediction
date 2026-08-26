@@ -1,0 +1,91 @@
+{
+  "dataset_name": "E Commerce Dataset Test",
+  "dataset_hash": "b139e4227328",
+  "n_rows": 5630,
+  "n_cols": 20,
+  "target_col": "Churn",
+  "id_cols": [
+    "CustomerID"
+  ],
+  "numeric_cols": [
+    "Tenure",
+    "WarehouseToHome",
+    "HourSpendOnApp",
+    "NumberOfDeviceRegistered",
+    "NumberOfAddress",
+    "OrderAmountHikeFromlastYear",
+    "CouponUsed",
+    "OrderCount",
+    "DaySinceLastOrder",
+    "CashbackAmount",
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score"
+  ],
+  "categorical_cols": [
+    "PreferredLoginDevice",
+    "CityTier",
+    "PreferredPaymentMode",
+    "Gender",
+    "PreferedOrderCat",
+    "SatisfactionScore",
+    "MaritalStatus",
+    "Complain"
+  ],
+  "datetime_cols": [],
+  "text_cols": [],
+  "drop_cols": [
+    "CustomerID"
+  ],
+  "feature_cols": [
+    "Tenure",
+    "WarehouseToHome",
+    "HourSpendOnApp",
+    "NumberOfDeviceRegistered",
+    "NumberOfAddress",
+    "OrderAmountHikeFromlastYear",
+    "CouponUsed",
+    "OrderCount",
+    "DaySinceLastOrder",
+    "CashbackAmount",
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score",
+    "PreferredLoginDevice",
+    "CityTier",
+    "PreferredPaymentMode",
+    "Gender",
+    "PreferedOrderCat",
+    "SatisfactionScore",
+    "MaritalStatus",
+    "Complain"
+  ],
+  "churn_rate": 16.84,
+  "class_balance": "imbalanced",
+  "rfm": {
+    "available": true,
+    "completeness": "partial",
+    "recency_col": "DaySinceLastOrder",
+    "frequency_col": "OrderCount",
+    "monetary_col": null,
+    "recency_source": "direct",
+    "frequency_source": "direct",
+    "monetary_source": null,
+    "warnings": [
+      "Only two RFM components were detected. RFM analysis will be partial."
+    ]
+  },
+  "warnings": [
+    "RFM: Only two RFM components were detected. RFM analysis will be partial."
+  ],
+  "engineered_cols": [
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score"
+  ],
+  "rfm_engineered_cols": [
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score"
+  ]
+}

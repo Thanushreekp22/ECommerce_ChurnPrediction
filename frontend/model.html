@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ChurnIQ — Model</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<script src="js/api.js"></script><script src="js/common.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async ()=>{
+  basePage('model',`
+    <div class="page-head"><div><h1>Model Information</h1><p>Current model status and the latest analysis/training information.</p></div></div>
+    <div class="kpi-grid" id="model-kpis"></div>
+    <div class="grid-2">
+      <section class="card"><div class="card-title">Active model</div><div id="model-details" class="muted">Loading...</div></section>
+      <section class="card"><div class="card-title">Latest training</div><div id="training-details" class="muted">Loading...</div></section>
+    </div>
+  `);
+  const healthEl=document.getElementById('model-details');
+  const trainingEl=document.getElementById('training-details');
+  try{
+    const h=await getHealth();
+    const state=await loadAnalytics();
+    const r=state?.trainingResult;
+    document.getElementById('model-kpis').innerHTML=`
+      <div class="kpi-card kpi-info"><div class="kpi-label">Active Model</div><div class="kpi-value" style="font-size:22px">${escapeHtml(h.active_model||'—')}</div><div class="kpi-sub">currently active</div></div>
+      <div class="kpi-card kpi-good"><div class="kpi-label">CV AUC</div><div class="kpi-value">${escapeHtml(h.auc_cv||'—')}</div><div class="kpi-sub">model performance</div></div>
+      <div class="kpi-card"><div class="kpi-label">Features</div><div class="kpi-value">${escapeHtml(r?.n_features||'—')}</div><div class="kpi-sub">latest training</div></div>
+      <div class="kpi-card"><div class="kpi-label">Training Time</div><div class="kpi-value" style="font-size:24px">${escapeHtml(r?.duration_seconds||'—')}</div><div class="kpi-sub">seconds</div></div>`;
+    healthEl.innerHTML=`<p><strong>Active model:</strong> ${escapeHtml(h.active_model)}</p><p style="margin-top:9px"><strong>Cross-validation AUC:</strong> ${escapeHtml(h.auc_cv)}</p><p style="margin-top:9px"><strong>API:</strong> <span style="color:var(--green);font-weight:700">Online</span></p>`;
+    trainingEl.innerHTML=r?`<p><strong>Dataset hash:</strong> <span class="mono">${escapeHtml(r.dataset_hash)}</span></p><p style="margin-top:9px"><strong>Features:</strong> ${escapeHtml(r.n_features)}</p><p style="margin-top:9px"><strong>Duration:</strong> ${escapeHtml(r.duration_seconds)} seconds</p>`:`<p>No new training result is stored in this browser session.</p>`;
+  }catch(e){
+    document.getElementById('model-kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Could not reach the backend.</div>';
+    healthEl.textContent='API offline.';
+  }
+});
+</script>
+</body>
+</html>

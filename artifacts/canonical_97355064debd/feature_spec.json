@@ -1,0 +1,13 @@
+{
+  "features": [
+    "total_orders",
+    "total_spend",
+    "average_order_value"
+  ],
+  "feature_types": {
+    "total_orders": "numeric",
+    "total_spend": "numeric",
+    "average_order_value": "numeric"
+  },
+  "transformations": []
+}

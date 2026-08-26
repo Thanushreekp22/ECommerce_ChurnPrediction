@@ -1,0 +1,32 @@
+{
+  "dataset_name": "E Commerce Dataset.xlsx",
+  "dataset_hash": "canonical_97355064debd",
+  "canonical": true,
+  "n_rows": 5630,
+  "n_cols": 21,
+  "target_col": "Churn",
+  "id_cols": [
+    "customer_id"
+  ],
+  "numeric_cols": [
+    "total_orders",
+    "total_spend",
+    "average_order_value"
+  ],
+  "categorical_cols": [],
+  "datetime_cols": [],
+  "text_cols": [],
+  "drop_cols": [
+    "customer_id"
+  ],
+  "feature_cols": [
+    "total_orders",
+    "total_spend",
+    "average_order_value"
+  ],
+  "churn_rate": 16.84,
+  "class_balance": "unknown",
+  "warnings": [],
+  "engineered_cols": [],
+  "rfm_engineered_cols": []
+}

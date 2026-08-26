@@ -1,0 +1,14 @@
+.segment-overview{display:grid;grid-template-columns:1.35fr repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}
+.segment-highlight{background:linear-gradient(135deg,#172130,#26394c);color:#fff;border:0;overflow:hidden;position:relative}
+.segment-highlight:after{content:"";position:absolute;width:180px;height:180px;right:-65px;bottom:-95px;border-radius:50%;background:rgba(53,170,142,.2)}
+.segment-eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.65);font-weight:800}
+.segment-highlight h2{font-size:21px;line-height:1.2;margin:10px 0 6px;position:relative;z-index:1}.segment-highlight p{color:rgba(255,255,255,.7);line-height:1.5;position:relative;z-index:1}
+.segment-stat{display:flex;flex-direction:column;justify-content:space-between}.segment-stat span{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:800}.segment-stat strong{font:28px var(--mono);margin-top:14px}.segment-stat.danger strong{color:var(--red)}.segment-stat.good strong{color:var(--green)}
+.segment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.segment-card{min-height:220px;padding:0;overflow:hidden}.segment-card-head{padding:17px 18px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.segment-card h3{font-size:14px}.segment-card-head p{margin-top:4px;color:var(--muted);font-size:12px}.segment-card-body{padding:14px 18px 7px}.segment-item{margin-bottom:14px}.segment-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:6px}.segment-label span:first-child{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.segment-label span:last-child{font-family:var(--mono);font-weight:800}.segment-track{height:9px;background:#eaf0f4;border-radius:99px;display:flex;overflow:hidden}.segment-churned{background:var(--red)}.segment-retained{background:var(--green)}
+.segment-count{font:11px var(--mono);color:var(--muted);background:var(--surface2);padding:5px 8px;border-radius:999px;white-space:nowrap}
+.legend-small{display:flex;gap:14px;margin-bottom:18px;color:var(--muted);font-size:12px}
+.legend-small span{display:flex;align-items:center;gap:5px}
+.legend-small i{width:9px;height:9px;border-radius:50%;display:inline-block}
+@media(max-width:1050px){.segment-overview,.segment-grid{grid-template-columns:1fr 1fr}.segment-highlight{grid-column:1/-1}}
+@media(max-width:760px){.segment-overview,.segment-grid{grid-template-columns:1fr}}

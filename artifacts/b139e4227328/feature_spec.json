@@ -1,0 +1,53 @@
+{
+  "features": [
+    "Tenure",
+    "WarehouseToHome",
+    "HourSpendOnApp",
+    "NumberOfDeviceRegistered",
+    "NumberOfAddress",
+    "OrderAmountHikeFromlastYear",
+    "CouponUsed",
+    "OrderCount",
+    "DaySinceLastOrder",
+    "CashbackAmount",
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score",
+    "PreferredLoginDevice",
+    "CityTier",
+    "PreferredPaymentMode",
+    "Gender",
+    "PreferedOrderCat",
+    "SatisfactionScore",
+    "MaritalStatus",
+    "Complain"
+  ],
+  "feature_types": {
+    "Tenure": "numeric",
+    "WarehouseToHome": "numeric",
+    "HourSpendOnApp": "numeric",
+    "NumberOfDeviceRegistered": "numeric",
+    "NumberOfAddress": "numeric",
+    "OrderAmountHikeFromlastYear": "numeric",
+    "CouponUsed": "numeric",
+    "OrderCount": "numeric",
+    "DaySinceLastOrder": "numeric",
+    "CashbackAmount": "numeric",
+    "RFM_Recency_Score": "numeric",
+    "RFM_Frequency_Score": "numeric",
+    "RFM_Composite_Score": "numeric",
+    "PreferredLoginDevice": "categorical",
+    "CityTier": "categorical",
+    "PreferredPaymentMode": "categorical",
+    "Gender": "categorical",
+    "PreferedOrderCat": "categorical",
+    "SatisfactionScore": "categorical",
+    "MaritalStatus": "categorical",
+    "Complain": "categorical"
+  },
+  "transformations": [
+    "RFM_Recency_Score",
+    "RFM_Frequency_Score",
+    "RFM_Composite_Score"
+  ]
+}
