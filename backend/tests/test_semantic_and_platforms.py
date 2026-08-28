@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from backend.integrations.platforms.mock import MockStoreAdapter
+from backend.integrations.platforms.mock import MockStoreAdapter, ALL_CUSTOMERS
 from backend.integrations.platform_sync import sync_platform, platform_status
 from backend.semantic_mapper import semantic_column_map
 
@@ -28,11 +28,28 @@ def test_mock_store_produces_canonical_transactions():
     pulled = adapter.sync()
     assert pulled["raw_orders"] == 5
     assert len(pulled["transactions"]) == 5
+    known_emails = {email for email, _ in ALL_CUSTOMERS}
     for transaction in pulled["transactions"]:
         assert transaction.order_id
-        assert transaction.customer_id.endswith("@example.com")
+        assert transaction.customer_id in known_emails
         assert transaction.order_date
         assert transaction.amount > 0
+        assert transaction.phone
+
+
+def test_mock_store_always_includes_real_demo_contacts():
+    """The outreach demo depends on the two real contacts existing every sync."""
+    for order_count in (4, 5, 12):
+        pulled = MockStoreAdapter(order_count=order_count, seed=3).sync()
+        ids = {t.customer_id for t in pulled["transactions"]}
+        assert len(pulled["transactions"]) == order_count
+        assert "thanushreekp22@gmail.com" in ids
+        assert "mrshreyu7@gmail.com" in ids
+        for t in pulled["transactions"]:
+            if t.customer_id == "thanushreekp22@gmail.com":
+                assert t.phone == "+919480579813"
+            if t.customer_id == "mrshreyu7@gmail.com":
+                assert t.phone == "+918217389421"
 
 
 def test_platform_sync_mock_imports_into_db(tmp_path):

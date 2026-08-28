@@ -136,6 +136,32 @@ def send_email(to: str, subject: str, body: str) -> dict:
             "note": "SMTP not configured — logged to outbox.",
         }
 
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = SMTP_FROM or SMTP_USER
+    msg["To"] = to
+    try:
+        if SMTP_PORT == 465:
+            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
+        else:
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+            if SMTP_USE_TLS:
+                server.starttls()
+        try:
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                pass
+        _record_outbox("email", to, subject, body, True, f"delivered via SMTP as {SMTP_FROM or SMTP_USER}")
+        return {"sent": True, "channel": "email", "mode": "smtp", "to": to}
+    except Exception as exc:
+        _record_outbox("email", to, subject, body, False, f"SMTP delivery failed: {exc}")
+        return {"sent": False, "channel": "email", "mode": "smtp", "error": str(exc)}
+
+
 def notify_retention(
     db_path: Path,
     customer_id: str,
@@ -180,6 +206,9 @@ def notify_retention(
                 result.setdefault("recipients", []).append({"channel": "email", "to": recipient})
         elif ch == "whatsapp":
             link = build_whatsapp_link(phone or recipient, body)
+            if link:
+                _record_outbox("whatsapp", phone or recipient, "WhatsApp outreach", body, True,
+                               "wa.me link generated (opens WhatsApp with the message pre-filled)")
             result["messages"].append({"channel": "whatsapp", "sent": bool(link),
                                        "wa_link": link or None,
                                        "error": None if link else "No phone number available."})
@@ -188,26 +217,3 @@ def notify_retention(
                 result["wa_link"] = link
 
     return result
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = SMTP_FROM or SMTP_USER
-    msg["To"] = to
-    try:
-        if SMTP_PORT == 465:
-            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
-        else:
-            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
-            if SMTP_USE_TLS:
-                server.starttls()
-        try:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-        finally:
-            try:
-                server.quit()
-            except Exception:
-                pass
-        return {"sent": True, "channel": "email", "mode": "smtp", "to": to}
-    except Exception as exc:
-        _record_outbox("email", to, subject, body, False, f"SMTP delivery failed: {exc}")
-        return {"sent": False, "channel": "email", "mode": "smtp", "error": str(exc)}

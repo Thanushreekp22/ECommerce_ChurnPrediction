@@ -20,7 +20,19 @@ CUSTOMERS = [
     ("erin@example.com",  "+15550000005"),
     ("frank@example.com", "+15550000006"),
 ]
-PHONE_BY_EMAIL = dict(CUSTOMERS)
+
+# Real contacts seeded so the email + WhatsApp outreach loop can be demoed
+# end-to-end (Apply strategy -> SMTP email -> wa.me WhatsApp link). Each one is
+# guaranteed at least one order on every sync so they always show up as
+# scoreable customers in the UI. Indian numbers carry the +91 country code,
+# which the wa.me deep link requires.
+REAL_CUSTOMERS = [
+    ("thanushreekp22@gmail.com", "+919480579813"),
+    ("mrshreyu7@gmail.com",      "+918217389421"),
+]
+
+ALL_CUSTOMERS = CUSTOMERS + REAL_CUSTOMERS
+PHONE_BY_EMAIL = dict(ALL_CUSTOMERS)
 
 PRODUCTS = [
     ("P1", "Wireless Headphones", "Electronics", 89.0),
@@ -45,8 +57,15 @@ class MockStoreAdapter:
         rng = random.Random(self.seed)
         today = datetime.now(timezone.utc)
         orders = []
-        for i in range(self.order_count):
-            email = CUSTOMERS[rng.randrange(len(CUSTOMERS))][0]
+        # One guaranteed order per real demo contact first, then the rest drawn
+        # randomly across the whole pool. Total stays exactly == order_count.
+        guaranteed = [email for email, _ in REAL_CUSTOMERS][: self.order_count]
+        pool = [email for email, _ in ALL_CUSTOMERS]
+        picks = guaranteed + [
+            pool[rng.randrange(len(pool))]
+            for _ in range(max(0, self.order_count - len(guaranteed)))
+        ]
+        for i, email in enumerate(picks):
             created = today - timedelta(days=rng.randint(0, 45), hours=rng.randint(0, 23))
             lines = []
             for _ in range(rng.randint(1, 3)):
