@@ -34,6 +34,12 @@ Deploy the `frontend` directory as a static site on Netlify. Set
 backend. Keep MongoDB, SMTP, and admin credentials in Render environment
 variables only; never commit them to `.env` or source control.
 
+The repository pins Render to Python 3.11.9 through `.python-version`. If the
+service was created manually as a Web Service, add `PYTHON_VERSION=3.11.9` in
+Render's environment variables and trigger a redeploy. Python 3.14 is not
+compatible with the pinned NumPy and scikit-learn versions used by the model
+artifacts.
+
 ## Verification
 
 ```powershell
