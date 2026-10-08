@@ -53,7 +53,7 @@ const COHORT_RULES = [
   { base:'couponused',          prio:'Medium', match:c => { const v = num(c.CouponUsed ?? c.coupon_used); return v != null && v === 0; } },
   { base:'ordercount',          prio:'Medium', match:c => { const v = num(c.OrderCount ?? c.number_of_orders); return v != null && v <= 1; } },
   { base:'hourspendonapp',      prio:'Medium', match:c => { const v = num(c.HourSpendOnApp ?? c.hour_spend_on_app); return v != null && v > 0 && v <= 1; } },
-  // RFM / transaction cohorts (Shopify, WooCommerce, mock store, CSV order imports).
+  // RFM cohorts from datasets that include transaction-style customer fields.
   // Keys match baseOf() on the recommender's driven_by values so cards merge.
   { base:'recency',             prio:'High',   match:c => { const v = num(c.recency); return v != null && v >= 30; } },
   { base:'frequency',           prio:'Medium', match:c => { const v = num(c.frequency ?? c.total_orders); return v != null && v <= 1; } },
@@ -223,12 +223,12 @@ function renderStrategies(){
 
 function openStrategy(key){
   const s=catalog.strategies.find(x=>x.key===key);if(!s)return;
+  const appliedFor = id => !!serverApplied[id + '::' + s.key];
   const rows=s.examples.map(x=>{
     const c=customerById[String(x.customer_id)]||{};
     return `<tr><td class="mono">${escapeHtml(x.customer_id)}</td><td><b>${((x.prob||0)*100).toFixed(0)}%</b></td><td><span class="risk-badge ${escapeHtml(c.risk_level||x.risk||'Medium')}">${escapeHtml(c.risk_level||x.risk||'Medium')}</span></td><td>${appliedFor(String(x.customer_id)) ? '<span class="applied-chip">yes</span>' : '-'}</td></tr>`;
   }).join('');
   const more=s.customerIds.length>s.examples.length?`<p class="muted" style="margin-top:10px;font-size:12px">+ ${(s.customerIds.length-s.examples.length)} more customers in this group.</p>`:'';
-  const appliedFor = id => !!serverApplied[id + '::' + s.key];
   const allApplied = s.customerIds.length > 0 && s.customerIds.every(appliedFor);
   const appliedN = appliedCountFor(s);
   document.getElementById('strategy-title').textContent=s.title;
@@ -238,12 +238,12 @@ function openStrategy(key){
     <p style="margin-bottom:14px;color:var(--muted);line-height:1.6">${escapeHtml(s.desc)}</p>
     <div class="table-wrap"><table class="insight-table"><thead><tr><th>Customer</th><th>Churn probability</th><th>Risk</th><th>Applied</th></tr></thead><tbody>${rows}</tbody></table></div>${more}
     <div style="display:flex;gap:10px;margin-top:18px">
-      <button class="apply-btn ${applied?'applied':''}" id="strategy-apply-btn" data-k="${escapeHtml(s.key)}">${applied?'✓ Applied':'Mark strategy as applied'}</button>
+      <button class="apply-btn ${allApplied?'applied':''}" id="strategy-apply-btn" data-k="${escapeHtml(s.key)}">${allApplied?'✓ Applied':'Mark strategy as applied'}</button>
       <button class="btn btn-secondary" id="strategy-email-btn">&#9993; Email targeted customers</button>
-      <button class="btn btn-secondary" id="strategy-wa-btn">WhatsApp (link)</button>
+      <button class="btn btn-secondary" id="strategy-wa-btn">WhatsApp links</button>
       <button class="btn btn-secondary" onclick="hideStrategy()">Close</button>
     </div>
-    <p class="est-note">* Assumes a ${Math.round(SAVE_RATE*100)}% campaign success rate.</p>`;
+    <p class="est-note">Applied means selected for follow-up; it does not send a message. Email requires SMTP and WhatsApp opens a pre-filled link. * Assumes a ${Math.round(SAVE_RATE*100)}% campaign success rate.</p>`;
   document.getElementById('strategy-apply-btn').onclick=function(){
     const nowApplied=!allApplied;
     setStrategyForAll(s,nowApplied).then(()=>{
@@ -253,31 +253,41 @@ function openStrategy(key){
   };
   document.getElementById('strategy-email-btn').onclick=async function(){
     const btn=this; btn.disabled=true; const orig=btn.textContent; btn.textContent='Sending…';
-    const ids=s.customerIds.slice(0,15); let sent=0, demo=false, failed=0;
+    const ids=s.customerIds.slice(0,15); let delivered=0, logged=0, unavailable=0, failed=0;
     try{
       for(const id of ids){
         try{
-          const res=await notifyStrategy(String(id), s.key, s.title||s.desc, 'email');
+          const customer=customerById[String(id)]||{};
+          const res=await notifyStrategy(String(id), s.key, s.title||s.desc, 'email', customer.email, customer.phone);
           const m=(res.messages||[])[0]||{};
-          if(res.sent!==false){ sent++; if(m.mode==='demo') demo=true; }
-          else failed++;
+          if(m.status==='delivered'){ delivered++; }
+          else if(m.status==='demo_logged'){ logged++; }
+          else if(m.status==='unavailable'){ unavailable++; }
+          else { failed++; }
         }catch(e){ failed++; }
       }
-      toast(demo ? sent+' emails logged to outbox (demo mode)' : sent+' emails sent to targeted customers' + (failed?' · '+failed+' failed':''));
-      document.getElementById('strategy-outbox-note').style.display=sent?'':'none';
+      const parts=[];
+      if(delivered)parts.push(delivered+' delivered');
+      if(logged)parts.push(logged+' saved in demo outbox');
+      if(unavailable)parts.push(unavailable+' missing email');
+      if(failed)parts.push(failed+' failed');
+      toast(parts.join(' · ')||'No email messages were sent', unavailable||failed?'warning':'success');
+      const note=document.getElementById('strategy-outbox-note');
+      if(note){note.style.display='';note.textContent=parts.join(' · ')||'No email messages were sent';}
     } catch(e){ alert('Notification failed: '+e.message); }
     btn.disabled=false; btn.textContent=orig;
   };
   document.getElementById('strategy-wa-btn').onclick=async function(){
-    const id=String(s.customerIds[0]||''); if(!id){ toast('No customer for WhatsApp link.'); return; }
-    const res=await notifyStrategy(id, s.key, s.title||s.desc, 'whatsapp');
+    const id=String(s.customerIds[0]||''); if(!id){ toast('No customer for WhatsApp link.','warning'); return; }
+    const customer=customerById[id]||{};
+    const res=await notifyStrategy(id, s.key, s.title||s.desc, 'whatsapp', customer.email, customer.phone);
     if(res.wa_link){ toast('Opening WhatsApp for '+id+' …'); setTimeout(()=>window.open(res.wa_link,'_blank'),300); }
-    else { const m=(res.messages||[])[0]||{}; alert(m.error||'No phone number available. Add a phone column to enable WhatsApp.'); }
+    else { const m=(res.messages||[])[0]||{}; toast(m.error||'No phone number available for this customer.','warning'); }
   };
   // Show the outbox note (how many demo-emails are logged)
   getNotificationOutbox().then(ob=>{
     const note=document.getElementById('strategy-outbox-note');
-    if(note&&ob.messages&&ob.messages.length){ note.style.display=''; note.textContent=ob.messages.length+' outreach message(s) logged (demo mode). See them on the E-commerce page.'; }
+    if(note&&ob.messages&&ob.messages.length){ note.style.display=''; note.textContent=ob.messages.length+' outreach message(s) logged in demo mode.'; }
   }).catch(()=>{});
   showModal('strategy-modal');
 }

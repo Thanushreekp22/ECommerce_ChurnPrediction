@@ -1,6 +1,7 @@
-const API = window.location.protocol === 'file:'
+const configuredApi = (window.CHURNIQ_API_URL || '').trim().replace(/\/+$/, '');
+const API = configuredApi || (window.location.protocol === 'file:'
   ? 'http://127.0.0.1:8000'
-  : `${window.location.protocol}//${window.location.hostname}:8000`;
+  : `${window.location.protocol}//${window.location.hostname}:8000`);
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API}${path}`, options);
@@ -274,13 +275,6 @@ async function getTrainingResult(jobId) {
   return response.json();
 }
 
-async function analyzeEcommerceFile(file) { const formData = new FormData(); formData.append('file', file); const response = await apiFetch('/integrations/ecommerce/analyze', {method: 'POST', body: formData}); return response.json(); }
-async function importEcommerceFile(file) { const formData = new FormData(); formData.append('file', file); const response = await apiFetch('/integrations/ecommerce/import', {method: 'POST', body: formData}); return response.json(); }
-async function getEcommerceSummary() { const response = await apiFetch('/integrations/ecommerce/summary'); return response.json(); }
-async function predictEcommerceCustomers() { const response = await apiFetch('/integrations/ecommerce/predict', {method: 'POST'}); return response.json(); }
-async function getPlatformStatus() { const response = await apiFetch('/integrations/platform/status'); return response.json(); }
-async function syncPlatform(platform) { const response = await apiFetch(`/integrations/platform/sync/${platform}`, {method: 'POST'}); return response.json(); }
-async function predictPlatform(platform) { const response = await apiFetch(`/integrations/platform/predict/${platform}`, {method: 'POST'}); return response.json(); }
 /* Applied retention strategies — server-side truth so state reflects on every device */
 async function fetchAppliedStrategies() { const response = await apiFetch('/strategies/applied'); return response.json(); }
 async function applyStrategyOnServer(strategyKey, customerIds, action, applied) {
@@ -292,11 +286,11 @@ async function applyStrategyOnServer(strategyKey, customerIds, action, applied) 
   return response.json();
 }
 /* Retention outreach — email / WhatsApp the applied strategy to a customer */
-async function notifyStrategy(customerId, strategyKey, action, channel, phone) {
+async function notifyStrategy(customerId, strategyKey, action, channel, email, phone) {
   const response = await apiFetch('/strategies/notify', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({customer_id: customerId, strategy_key: strategyKey, action, channel, phone})
+    body: JSON.stringify({customer_id: customerId, strategy_key: strategyKey, action, channel, email, phone})
   });
   return response.json();
 }

@@ -32,18 +32,13 @@ from utils.config import (
     get_active_model_dir, set_active_model,
     list_available_models, ARTIFACTS_BASE, MAX_UPLOAD_BYTES,
     MAX_TRAINING_WORKERS, MODEL_MIN_AUC, ADMIN_API_KEY, CORS_ORIGINS,
-    INTEGRATION_DB_PATH,
 )
 from utils.schema_inferrer import infer_schema, schema_matches_existing
 from backend.predictor import predict_batch, predict_batch_with_artifacts, reload_artifacts, get_metadata, get_feature_importance
 from backend.trainer import train_model, load_artifacts
 from backend.feature_mapper import map_dataset, canonical_schema, canonicalize_dataset
 from backend.model_compatibility import find_compatible_model
-from backend.integrations.csv_adapter import analyze_csv_dataframe, normalize_csv_dataframe
-from backend.integrations.feature_builder import build_customer_features
-from backend.integrations.storage import import_transactions, integration_summary
-from backend.integrations.platform_sync import sync_platform, platform_status
-from backend.integrations.storage import record_strategy_applied, applied_for_customer, applied_summary, applied_records
+from backend.mongo_storage import record_strategy_applied, applied_for_customer, applied_summary, applied_records
 from pydantic import BaseModel
 
 
@@ -270,150 +265,6 @@ async def predict_unlabeled(file: UploadFile = File(...)):
     return JSONResponse(content=payload)
 
 
-# Transaction integration endpoints are deliberately separate from the dataset
-# upload flow. They import normalized orders into SQLite, then reuse the same
-# canonical model-compatibility and prediction services.
-@app.post("/integrations/ecommerce/analyze")
-async def analyze_ecommerce_import(file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    if not content:
-        raise HTTPException(status_code=400, detail="Unable to read transaction file.")
-    try:
-        df = _read_file(content, file.filename)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Unable to read transaction file: {exc}")
-    if df.empty:
-        raise HTTPException(status_code=400, detail="Transaction file is empty.")
-    return analyze_csv_dataframe(df)
-
-
-@app.post("/integrations/ecommerce/import")
-async def import_ecommerce_transactions(file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    if not content:
-        raise HTTPException(status_code=400, detail="Unable to read transaction file.")
-    try:
-        df = _read_file(content, file.filename)
-        analysis = analyze_csv_dataframe(df)
-        if analysis["missing_required"]:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Transaction import is missing required fields: {', '.join(analysis['missing_required'])}.",
-            )
-        transactions, validation = normalize_csv_dataframe(df, analysis)
-        if not transactions:
-            raise HTTPException(status_code=422, detail="No valid transactions were found to import.")
-        return import_transactions(INTEGRATION_DB_PATH, file.filename or "transactions", len(df), transactions, validation)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Transaction import failed: {exc}")
-
-
-@app.get("/integrations/ecommerce/summary")
-def ecommerce_integration_summary():
-    return integration_summary(INTEGRATION_DB_PATH)
-
-
-@app.get("/integrations/ecommerce/features")
-def ecommerce_features():
-    customers = build_customer_features(INTEGRATION_DB_PATH)
-    return {
-        "customers": len(customers),
-        "features": [
-            "total_orders", "total_spend", "average_order_value", "recency",
-            "tenure_days", "frequency", "monetary",
-        ] if not customers.empty else [],
-    }
-
-
-@app.get("/integrations/ecommerce/customers")
-def ecommerce_customers():
-    customers = build_customer_features(INTEGRATION_DB_PATH)
-    return {"customers": customers.where(pd.notna(customers), None).to_dict(orient="records")}
-
-
-@app.post("/integrations/ecommerce/predict")
-def predict_ecommerce_customers():
-    customers = build_customer_features(INTEGRATION_DB_PATH)
-    if customers.empty:
-        raise HTTPException(status_code=422, detail="No imported transactions are available for prediction.")
-    model = find_compatible_model(ARTIFACTS_BASE, customers.columns.tolist())
-    if model is None:
-        raise HTTPException(
-            status_code=422,
-            detail="No compatible churn model found for transaction-derived customer features. Train a canonical transaction churn model first.",
-        )
-    try:
-        payload = predict_batch_with_artifacts(customers, model["model_dir"])
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Model prediction failed: {exc}")
-    payload.update({
-        "dataset_type": "ecommerce_transactions",
-        "source_file": "integration.sqlite3",
-        "compatibility_score": model["compatibility"]["score"],
-        "predicted_at": pd.Timestamp.now(tz="UTC").isoformat(),
-        "model": {key: model[key] for key in ("model_id", "model_name", "version", "auc_cv")},
-    })
-    return JSONResponse(content=payload)
-
-# ─── E-commerce platform integrations (Shopify / WooCommerce / mock store) ─────
-
-@app.get("/integrations/platform/status")
-def platform_integration_status():
-    summary = integration_summary(INTEGRATION_DB_PATH)
-    last_sync = {
-        str(src.get("source_name")): src.get("last_sync_at")
-        for src in summary.get("sources", [])
-        if str(src.get("source_name", "")).startswith("platform:")
-    }
-    return {
-        "platforms": platform_status(["shopify", "woocommerce", "mock"]),
-        "orders": summary.get("orders"),
-        "customers": summary.get("customers"),
-        "last_sync": last_sync,
-    }
-
-
-@app.post("/integrations/platform/sync/{platform}")
-def platform_sync_endpoint(platform: str):
-    try:
-        result = sync_platform(platform, INTEGRATION_DB_PATH)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    if result.get("status") == "error":
-        raise HTTPException(status_code=422, detail=result.get("error", "Platform sync failed."))
-    return result
-
-
-@app.post("/integrations/platform/predict/{platform}")
-def platform_predict_endpoint(platform: str):
-    # Sync a platform then score the resulting customers (mock/demo friendly).
-    result = sync_platform(platform, INTEGRATION_DB_PATH)
-    if result.get("status") == "error":
-        raise HTTPException(status_code=422, detail=result.get("error", "Platform sync failed."))
-    customers = build_customer_features(INTEGRATION_DB_PATH)
-    if customers.empty:
-        raise HTTPException(status_code=422, detail="No imported customers are available for prediction.")
-    model = find_compatible_model(ARTIFACTS_BASE, customers.columns.tolist())
-    if model is None:
-        raise HTTPException(
-            status_code=422,
-            detail="No compatible churn model found for transaction-derived customer features. Train a canonical transaction churn model first.",
-        )
-    try:
-        payload = predict_batch_with_artifacts(customers, model["model_dir"])
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Model prediction failed: {exc}")
-    payload.update({
-        "dataset_type": "ecommerce_transactions",
-        "source_platform": platform,
-        "compatibility_score": model["compatibility"]["score"],
-        "predicted_at": pd.Timestamp.now(tz="UTC").isoformat(),
-        "model": {key: model[key] for key in ("model_id", "model_name", "version", "auc_cv")},
-    })
-    return JSONResponse(content=payload)
-
 class StrategyApplyRequest(BaseModel):
     customer_ids: list[str]
     strategy_key: str
@@ -430,7 +281,7 @@ def strategies_apply(req: StrategyApplyRequest):
     if not req.strategy_key:
         raise HTTPException(status_code=422, detail="strategy_key is required.")
     try:
-        return record_strategy_applied(INTEGRATION_DB_PATH, ids, req.strategy_key, req.action, req.applied)
+        return record_strategy_applied(ids, req.strategy_key, req.action, req.applied)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not save strategy state: {exc}")
 
@@ -440,13 +291,13 @@ def strategies_applied(customer_id: str | None = None, strategy_key: str | None 
     if customer_id:
         return {
             "customer_id": customer_id,
-            "applied": applied_for_customer(INTEGRATION_DB_PATH, customer_id),
+            "applied": applied_for_customer(customer_id),
         }
     if strategy_key:
-        summary = applied_summary(INTEGRATION_DB_PATH)
+        summary = applied_summary()
         entry = summary["by_strategy"].get(strategy_key, {"customers": 0, "last_applied": None})
         return {"strategy_key": strategy_key, **entry}
-    return {**applied_summary(INTEGRATION_DB_PATH), "records": applied_records(INTEGRATION_DB_PATH)}
+    return {**applied_summary(), "records": applied_records()}
 
 
 class StrategyNotifyRequest(BaseModel):
@@ -454,6 +305,7 @@ class StrategyNotifyRequest(BaseModel):
     strategy_key: str
     action: str | None = None
     channel: str = "email"   # email | whatsapp | both
+    email: str | None = None
     phone: str | None = None
 
 
@@ -467,11 +319,11 @@ def strategies_notify(req: StrategyNotifyRequest):
         raise HTTPException(status_code=422, detail="channel must be email, whatsapp or both.")
     try:
         return notify_retention(
-            INTEGRATION_DB_PATH,
             req.customer_id,
             req.strategy_key or "general_retention",
             req.action,
             channel=req.channel,
+            email=req.email,
             phone=req.phone,
         )
     except Exception as exc:
@@ -493,7 +345,7 @@ def notifications_outbox():
 
 @app.get("/strategies/applied/summary")
 def strategies_applied_summary():
-    return applied_summary(INTEGRATION_DB_PATH)
+    return applied_summary()
 
 @app.post("/predict/batch-analyze")
 async def batch_analyze(file: UploadFile = File(...)):

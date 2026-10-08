@@ -34,18 +34,7 @@ async function requireAnalytics(){
 }
 function showModal(id){document.getElementById(id)?.classList.add('active');}
 function hideModal(id){document.getElementById(id)?.classList.remove('active');}
-function renderNoAnalysis(){document.body.innerHTML='<main class="standalone-state"><div class="state-icon">↗</div><h1>No analysis available</h1><p>Upload a customer dataset to begin exploring churn risk — or run the built-in demo to see the full pipeline in action.</p><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" onclick="go(\'upload.html\')">Upload dataset</button><button class="btn btn-secondary" onclick="runInstantDemo()">⚡ Run instant demo</button></div></main>';}
-async function runInstantDemo(){
-  try{
-    document.body.innerHTML='<main class="page-loading"><span><i></i>Running instant demo — pulling mock store orders &amp; scoring customers…</span></main>';
-    await syncPlatform('mock');
-    const payload=await predictPlatform('mock');
-    await saveAnalytics(payload,false,null);
-    go('index.html');
-  }catch(error){
-    renderAppError(error.message||'The instant demo could not run. Is the backend running on port 8000?');
-  }
-}
+function renderNoAnalysis(){document.body.innerHTML='<main class="standalone-state"><div class="state-icon">↗</div><h1>No analysis available</h1><p>Upload a customer dataset to begin exploring churn risk.</p><button class="btn btn-primary" onclick="go(\'upload.html\')">Upload dataset</button></main>';}
 function renderAppError(message){document.body.innerHTML='<main class="standalone-state"><div class="state-icon error">!</div><h1>Unable to load analytics</h1><p>'+escapeHtml(message||'The stored analysis could not be opened.')+'</p><button class="btn btn-secondary" onclick="location.reload()">Try again</button></main>';}
 function navItem(active,key,href,label,icon){return '<a class="nav-link '+(active===key?'active':'')+'" href="'+href+'">'+icon+'<span>'+label+'</span></a>';}
 function buildNav(active){
@@ -56,9 +45,8 @@ function buildNav(active){
     segments:'<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12.5" y="8" width="3" height="10" rx="1"/><rect x="18" y="5" width="3" height="13" rx="1"/></svg>',
     actions:'<svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>',
     models:'<svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="7"/></svg>',
-    store:'<svg viewBox="0 0 24 24"><path d="M3 3h2l2.2 11.1a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.6L21 7H6"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>'
   };
-  el.innerHTML='<button class="nav-new" aria-label="Upload a new dataset" title="New dataset" onclick="startNewDataset()"><b>+</b><span>New dataset</span></button><div class="nav-links">'+navItem(active,'overview','index.html','Dashboard',icons.dashboard)+navItem(active,'customers','customers.html','Customers',icons.customers)+navItem(active,'segments','segments.html','Segments',icons.segments)+navItem(active,'actions','actions.html','Actions',icons.actions)+navItem(active,'model','model.html','Models',icons.models)+navItem(active,'ecommerce','ecommerce.html','E-commerce',icons.store)+'</div><div class="nav-bottom-dot" title="System ready"></div>';
+  el.innerHTML='<button class="nav-new" aria-label="Upload a new dataset" title="New dataset" onclick="startNewDataset()"><b>+</b><span>New dataset</span></button><div class="nav-links">'+navItem(active,'overview','index.html','Dashboard',icons.dashboard)+navItem(active,'customers','customers.html','Customers',icons.customers)+navItem(active,'segments','segments.html','Segments',icons.segments)+navItem(active,'actions','actions.html','Actions',icons.actions)+navItem(active,'model','model.html','Models',icons.models)+'</div><div class="nav-bottom-dot" title="System ready"></div>';
 }
 function setupHeader(){
   getHealth().then(data=>{const name=document.getElementById('model-name-badge'),auc=document.getElementById('auc-badge');if(name)name.textContent=data.active_model||'Model unavailable';if(auc)auc.textContent=data.auc_cv?'AUC '+data.auc_cv:'No score';}).catch(()=>{const name=document.getElementById('model-name-badge');if(name)name.textContent='API offline';});

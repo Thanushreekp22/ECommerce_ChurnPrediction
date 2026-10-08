@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: churniq-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: CHURNIQ_MAX_TRAINING_WORKERS
+        value: "1"
+      - key: CHURNIQ_MODEL_MIN_AUC
+        value: "0.50"
+      - key: CHURNIQ_ADMIN_API_KEY
+        generateValue: true

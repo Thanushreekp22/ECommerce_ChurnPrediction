@@ -39,7 +39,8 @@ def _load_dotenv(path: Path) -> None:
 
 
 _load_dotenv(BASE_DIR / ".env")
-INTEGRATION_DB_PATH = ARTIFACTS_BASE / "integration.sqlite3"
+MONGO_URI = os.getenv("CHURNIQ_MONGO_URI", "mongodb://127.0.0.1:27017")
+MONGO_DB_NAME = os.getenv("CHURNIQ_MONGO_DB", "churniq")
 
 # ─── Default model (existing E-Commerce model) ────────────────────────────────
 DEFAULT_MODEL_DIR  = ARTIFACTS_BASE / "b139e4227328"

@@ -20,20 +20,19 @@ python -m http.server 5500
 
 Open `http://127.0.0.1:5500/upload.html`.
 
-## E-commerce transaction integration
+## Deployment
 
-Open `http://127.0.0.1:5500/ecommerce.html` to preview and import raw order
-CSV/XLSX files. Required fields are order ID, customer ID, order date, and
-amount; common aliases such as `Order ID`, `Customer`, `Purchase Date`, and
-`Total` are detected automatically. Imports are normalized and upserted into
-`artifacts/integration.sqlite3`, so re-importing the same order IDs updates
-rather than duplicates data.
+The included `render.yaml` deploys the FastAPI backend to Render. After the
+backend is deployed, copy its public URL into `frontend/config.js`:
 
-Transaction-derived customer features are `total_orders`, `total_spend`,
-`average_order_value`, `recency`, and `tenure_days` (with frequency and
-monetary aliases). The integration prediction endpoint only scores these
-customers when a quality-approved canonical model has a compatible feature
-contract; it never fills unrelated model inputs with fake values.
+```js
+window.CHURNIQ_API_URL = 'https://your-render-service.onrender.com';
+```
+
+Deploy the `frontend` directory as a static site on Netlify. Set
+`CHURNIQ_CORS_ORIGINS` on Render to the final Netlify URL, then redeploy the
+backend. Keep MongoDB, SMTP, and admin credentials in Render environment
+variables only; never commit them to `.env` or source control.
 
 ## Verification
 
@@ -54,9 +53,11 @@ control:
 | `CHURNIQ_MAX_TRAINING_WORKERS` | `1` | Concurrent training jobs per process. |
 | `CHURNIQ_MODEL_MIN_AUC` | `0.50` | Minimum CV AUC for an unlabeled-compatible model. |
 | `CHURNIQ_ADMIN_API_KEY` | unset | Required for `POST /model/switch/{model_id}` via `X-Admin-Api-Key`. |
+| `CHURNIQ_MONGO_URI` | `mongodb://127.0.0.1:27017` | MongoDB connection string for retention strategy state. |
+| `CHURNIQ_MONGO_DB` | `churniq` | MongoDB database name. |
 
-For a multi-instance deployment, replace the in-memory training-job store with
-a shared queue/database and store artifacts in durable shared storage.
+Training-job status remains in memory; use a shared queue for multi-instance
+training deployments and durable shared storage for model artifacts.
 
 
 ## AI semantic feature mapping
@@ -69,29 +70,6 @@ to `customer_id`, `member_joined` to `signup_date`, and `total_revenue` to
 (e.g. `product`, `category`, `color`) are left unmapped and never force-mapped.
 Each semantic mapping is reported with a confidence score in the schema
 analysis response.
-
-## E-commerce platform integration
-
-Beyond CSV/XLSX order imports, the project can pull orders directly from a
-connected e-commerce store:
-
-| Platform | Configuration (environment) |
-| --- | --- |
-| Shopify | `CHURNIQ_SHOPIFY_SHOP`, `CHURNIQ_SHOPIFY_TOKEN` |
-| WooCommerce | `CHURNIQ_WOO_URL`, `CHURNIQ_WOO_KEY`, `CHURNIQ_WOO_SECRET` |
-| Retention email (SMTP) | unset | Optional. Set `CHURNIQ_SMTP_HOST`, `CHURNIQ_SMTP_PORT`, `CHURNIQ_SMTP_USER`, `CHURNIQ_SMTP_PASS` (and optionally `CHURNIQ_SMTP_FROM`) to send real emails when applying retention strategies. Without them the app runs in **demo mode**: messages are logged to `artifacts/notifications_outbox.json` and shown on the E-commerce page. |
-| WhatsApp | none needed | Applying a strategy can generate a **wa.me deep link** with the message pre-filled (uses the customer phone stored during platform sync). Opening it composes the WhatsApp message — no paid API required. |
-| Demo mock store | always available (no credentials) |
-
-```
-POST /integrations/platform/sync/{platform}     # pull + import orders
-POST /integrations/platform/predict/{platform} # sync, then score customers
-GET  /integrations/platform/status             # configuration status
-```
-
-Purchases pulled from a platform flow into the same SQLite integration store
-and customer-feature builder, so they are scored and visualised exactly like
-CSV imports.
 
 ## Personalised retention recommendations
 

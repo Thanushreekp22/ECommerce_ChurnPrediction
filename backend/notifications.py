@@ -26,8 +26,6 @@ import smtplib
 import urllib.parse
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
-from pathlib import Path
-
 from utils.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_USE_TLS,
     NOTIFICATIONS_OUTBOX, smtp_configured,
@@ -42,54 +40,11 @@ def looks_like_email(value: str) -> bool:
     return "@" in str(value or "") and "." in str(value or "").split("@")[-1]
 
 
-def customer_email(db_path: Path, customer_id: str) -> str | None:
-    """
-    Best-effort resolution of a customer's email address.
-
-    For the demo / integration store the customer_id IS the email address
-    (e.g. alice@example.com). For uploaded datasets we also check an optional
-    e-mail column stored on the integration customers table.
-    """
+def customer_email(customer_id: str) -> str | None:
+    """Use a customer identifier as an email when it has email shape."""
     cid = str(customer_id or "").strip()
     if looks_like_email(cid):
         return cid
-    try:
-        import sqlite3
-        try:
-            conn = sqlite3.connect(db_path)
-            cols = [r[1] for r in conn.execute("PRAGMA table_info(customers)").fetchall()]
-            conn.close()
-        finally:
-            pass  # conn closed above
-        if "email" in cols:
-            conn2 = sqlite3.connect(db_path)
-            try:
-                row = conn2.execute("SELECT email FROM customers WHERE customer_id=?", (cid,)).fetchone()
-            finally:
-                conn2.close()
-            if row and looks_like_email(str(row[0] or "")):
-                return str(row[0])
-    except Exception:
-        pass
-    return None
-
-
-def customer_phone(db_path: Path, customer_id: str) -> str | None:
-    """Look up a stored phone number for WhatsApp outreach."""
-    try:
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        try:
-            cols = [r[1] for r in conn.execute("PRAGMA table_info(customers)").fetchall()]
-            if "phone" not in cols:
-                return None
-            row = conn.execute("SELECT phone FROM customers WHERE customer_id=?", (str(customer_id),)).fetchone()
-        finally:
-            conn.close()
-        if row and row[0]:
-            return str(row[0]).strip()
-    except Exception:
-        pass
     return None
 
 
@@ -127,13 +82,14 @@ def send_email(to: str, subject: str, body: str) -> dict:
     Falls back to demo mode (outbox log) when SMTP is not configured.
     """
     if not to:
-        return {"sent": False, "channel": "email", "error": "No recipient email available."}
+        return {"sent": False, "delivered": False, "channel": "email", "status": "unavailable", "error": "No email address available."}
 
     if not smtp_configured():
         _record_outbox("email", to, subject, body, True, "demo-mode (SMTP not configured — message logged to outbox)")
         return {
-            "sent": True, "channel": "email", "mode": "demo",
-            "note": "SMTP not configured — logged to outbox.",
+            "sent": False, "delivered": False, "channel": "email", "mode": "demo",
+            "status": "demo_logged",
+            "note": "SMTP is not configured; the message was only logged locally.",
         }
 
     msg = MIMEText(body, "plain", "utf-8")
@@ -156,18 +112,18 @@ def send_email(to: str, subject: str, body: str) -> dict:
             except Exception:
                 pass
         _record_outbox("email", to, subject, body, True, f"delivered via SMTP as {SMTP_FROM or SMTP_USER}")
-        return {"sent": True, "channel": "email", "mode": "smtp", "to": to}
+        return {"sent": True, "delivered": True, "channel": "email", "mode": "smtp", "status": "delivered", "to": to}
     except Exception as exc:
         _record_outbox("email", to, subject, body, False, f"SMTP delivery failed: {exc}")
-        return {"sent": False, "channel": "email", "mode": "smtp", "error": str(exc)}
+        return {"sent": False, "delivered": False, "channel": "email", "mode": "smtp", "status": "failed", "error": str(exc)}
 
 
 def notify_retention(
-    db_path: Path,
     customer_id: str,
     strategy_key: str,
     action_text: str,
     channel: str = "email",
+    email: str | None = None,
     phone: str | None = None,
 ) -> dict:
     """
@@ -176,14 +132,13 @@ def notify_retention(
     channel: "email" | "whatsapp" | "both"
     Returns a structured result the frontend can render (wa_link included).
     """
-    recipient = customer_email(db_path, customer_id)
-    if not phone:
-        phone = customer_phone(db_path, customer_id)
+    recipient = email if looks_like_email(email or "") else customer_email(customer_id)
     result: dict = {
         "customer_id": customer_id,
         "strategy_key": strategy_key,
         "channel": channel,
         "sent": False,
+        "delivered": False,
         "messages": [],
     }
 
@@ -196,24 +151,24 @@ def notify_retention(
     for ch in channels:
         if ch == "email":
             if not recipient:
-                result["messages"].append({"channel": "email", "sent": False, "error": "No email address on file."})
+                result["messages"].append({"channel": "email", "sent": False, "delivered": False, "status": "unavailable", "error": "No email address available."})
                 continue
             res = send_email(recipient, subject, body)
-            result["messages"].append({"channel": "email", "sent": res.get("sent"), "mode": res.get("mode"),
+            result["messages"].append({"channel": "email", "sent": res.get("sent"), "delivered": res.get("delivered", False), "status": res.get("status"), "mode": res.get("mode"),
                                        "to": recipient, "error": res.get("error"), "note": res.get("note")})
-            if res.get("sent"):
+            if res.get("delivered"):
                 result["sent"] = True
+                result["delivered"] = True
                 result.setdefault("recipients", []).append({"channel": "email", "to": recipient})
         elif ch == "whatsapp":
             link = build_whatsapp_link(phone or recipient, body)
             if link:
                 _record_outbox("whatsapp", phone or recipient, "WhatsApp outreach", body, True,
                                "wa.me link generated (opens WhatsApp with the message pre-filled)")
-            result["messages"].append({"channel": "whatsapp", "sent": bool(link),
+            result["messages"].append({"channel": "whatsapp", "sent": False, "delivered": False, "status": "link_ready" if link else "unavailable",
                                        "wa_link": link or None,
                                        "error": None if link else "No phone number available."})
             if link:
-                result["sent"] = True
                 result["wa_link"] = link
 
     return result

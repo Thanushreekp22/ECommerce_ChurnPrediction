@@ -20,6 +20,10 @@ function setCustomerFilter(value,btn){
   btn.classList.add('active');renderTable();
 }
 function probColor(p){return p>=.7?'var(--red)':p>=.4?'var(--amber)':'var(--green)'}
+function contactValue(customer, kind){
+  if(kind==='email')return customer.email||customer.Email||customer.email_address||customer.emailAddress||'';
+  return customer.phone||customer.Phone||customer.mobile||customer.Mobile||customer.phone_number||'';
+}
 
 function renderTable(){
   const schema=data.schema||{}, cols=(schema.feature_cols||[]).slice(0,6);
@@ -127,15 +131,18 @@ function wireApplyButtons(){
             action=nb.dataset.notifyAction, channel=nb.dataset.notifyChannel;
       nb.disabled=true; const orig=nb.textContent; nb.textContent='Sending…';
       try{
-        const res=await notifyStrategy(cid,skey,action,channel);
+        const customer=customers.find(c=>String(c.customer_id)===String(cid))||{};
+        const res=await notifyStrategy(cid,skey,action,channel,contactValue(customer,'email'),contactValue(customer,'phone'));
         const m=(res.messages||[])[0]||{};
         if(res.wa_link){
           toast('WhatsApp link ready — opening…');
           setTimeout(()=>window.open(res.wa_link,'_blank'),300);
-        }else if(channel==='email'&&res.sent!==false){
-          toast(res.mode==='demo' ? 'Email sent (demo mode) — logged to outbox' : 'Email sent to '+cid);
+        }else if(channel==='email'&&m.status==='delivered'){
+          toast('Email delivered to '+(m.to||cid));
+        }else if(channel==='email'&&m.status==='demo_logged'){
+          toast('Email saved to demo outbox; SMTP is not configured','warning');
         }else{
-          toast('Could not send: '+(m.error||'unknown error'));
+          toast(m.error||'This channel is unavailable for the customer','warning');
         }
       }catch(e){alert('Notification failed: '+e.message);}
       nb.disabled=false; nb.textContent=orig;
@@ -153,13 +160,16 @@ function showDetail(id){
   const recs=generateRecs(c);
   const recsHtml=recs.map(r=>{
     const key=recKey(c.customer_id,r),applied=!!appliedStrategies[key];
+    const email=contactValue(c,'email'),phone=contactValue(c,'phone');
+    const emailLabel=email?'Email':'Email unavailable';
+    const whatsappLabel=phone?'WhatsApp':'WhatsApp unavailable';
     return `<div class="rec-card">
       <div class="rec-priority ${r.priority}">${r.priority}</div>
       <div style="flex:1;min-width:0"><div>${escapeHtml(r.action)}</div>${r.driven_by?`<div class="mono rec-driver">driven by ${escapeHtml(r.driven_by)}</div>`:''}</div>
       <button class="apply-btn ${applied?'applied':''}" data-apply-key="${escapeHtml(key)}" data-cid="${escapeHtml(c.customer_id)}" data-skey="${escapeHtml(r.strategy_key||'general')}" data-action="${escapeHtml(r.action)}" aria-label="${applied?'Mark strategy as not applied':'Mark strategy as applied'}">${applied?'✓ Applied':'Apply'}</button>
       <div class="notify-row" ${applied?'':'style="display:none"'}>
-        <button class="btn btn-mini" data-notify-key="${escapeHtml(key)}" data-notify-cid="${escapeHtml(c.customer_id)}" data-notify-skey="${escapeHtml(r.strategy_key||'general')}" data-notify-action="${escapeHtml(r.action)}" data-notify-channel="email" title="Email this retention strategy to the customer">&#9993; Email</button>
-        <button class="btn btn-mini" data-notify-key="${escapeHtml(key)}" data-notify-cid="${escapeHtml(c.customer_id)}" data-notify-skey="${escapeHtml(r.strategy_key||'general')}" data-notify-action="${escapeHtml(r.action)}" data-notify-channel="whatsapp" title="Open WhatsApp with the strategy pre-filled">WhatsApp</button>
+        <button class="btn btn-mini" ${email?'':'disabled'} data-notify-key="${escapeHtml(key)}" data-notify-cid="${escapeHtml(c.customer_id)}" data-notify-skey="${escapeHtml(r.strategy_key||'general')}" data-notify-action="${escapeHtml(r.action)}" data-notify-channel="email" title="${email?'Email this retention strategy to '+escapeHtml(email):'No email address is available'}">&#9993; ${emailLabel}</button>
+        <button class="btn btn-mini" ${phone?'':'disabled'} data-notify-key="${escapeHtml(key)}" data-notify-cid="${escapeHtml(c.customer_id)}" data-notify-skey="${escapeHtml(r.strategy_key||'general')}" data-notify-action="${escapeHtml(r.action)}" data-notify-channel="whatsapp" title="${phone?'Open WhatsApp with the strategy pre-filled':'No phone number is available'}">WhatsApp${phone?'':' unavailable'}</button>
       </div>
     </div>`;
   }).join('');
