@@ -29,8 +29,10 @@ backend is deployed, copy its public URL into `frontend/config.js`:
 window.CHURNIQ_API_URL = 'https://your-render-service.onrender.com';
 ```
 
-Deploy the `frontend` directory as a static site on Netlify. Set
-`CHURNIQ_CORS_ORIGINS` on Render to the final Netlify URL, then redeploy the
+Deploy the `frontend` directory as a static site on Vercel with `frontend` as
+the root directory, no build command, and `.` as the output directory. The
+included `frontend/vercel.json` redirects `/` to `/index.html`. Set
+`CHURNIQ_CORS_ORIGINS` on Render to the final Vercel URL, then redeploy the
 backend. Keep MongoDB, SMTP, and admin credentials in Render environment
 variables only; never commit them to `.env` or source control.
 
